@@ -7,12 +7,15 @@
   "backend": true,
   "executable": "gpx_sparql",
   "info": {
-    "description": "Add support for SPARQL",
+    "description": "Datasource for SPARQL endpoints",
     "author": {
-      "name": "ludovicm67"
+      "url": "https://ludovic-muller.fr/",
+      "name": "Ludovic Muller"
     },
     "keywords": [
-      "datasource"
+      "datasource",
+      "sparql",
+      "rdf"
     ],
     "logos": {
       "small": "img/logo.svg",
