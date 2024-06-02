@@ -1,0 +1,30 @@
+apiVersion: 1
+
+datasources:
+  - name: 'SPARQL - Wikidata'
+    uid: sparql-datasource-wikidata
+    type: 'ludovicm67-sparql-datasource'
+    access: proxy
+    isDefault: false
+    orgId: 1
+    version: 1
+    editable: true
+    jsonData:
+      endpoint: 'https://query.wikidata.org/sparql'
+      username: ''
+    secureJsonData:
+      password: ''
+
+  - name: 'SPARQL - DBpedia'
+    uid: sparql-datasource-dbpedia
+    type: 'ludovicm67-sparql-datasource'
+    access: proxy
+    isDefault: false
+    orgId: 1
+    version: 1
+    editable: true
+    jsonData:
+      endpoint: 'https://dbpedia.org/sparql'
+      username: ''
+    secureJsonData:
+      password: ''
