@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "datasource",
+  "name": "SPARQL",
+  "id": "ludovicm67-sparql-datasource",
+  "metrics": true,
+  "backend": true,
+  "executable": "gpx_sparql",
+  "info": {
+    "description": "Add support for SPARQL",
+    "author": {
+      "name": "ludovicm67"
+    },
+    "keywords": [
+      "datasource"
+    ],
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [
+      {
+        "name": "GitHub",
+        "url": "https://github.com/ludovicm67/grafana-sparql"
+      }
+    ],
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=10.0.3",
+    "plugins": []
+  }
+}
