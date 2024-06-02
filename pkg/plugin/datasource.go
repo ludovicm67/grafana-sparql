@@ -202,12 +202,15 @@ func handleGenericQuery(d *Datasource, query string) backend.DataResponse {
 
 	if len(vars) == 0 {
 		// This is a boolean result (ASK query)
-		frame.Fields = append(frame.Fields, data.NewField("result", nil, []bool{res.Boolean}))
+		frame.Fields = append(frame.Fields, data.NewField("boolean", nil, []bool{res.Boolean}))
 	} else {
 		// This is a SELECT query
 		bindings := res.Bindings()
 
-		for varName, values := range bindings {
+		for _, varName := range vars {
+			// Get the values for the variable
+			values := bindings[varName]
+
 			// Create a slice to hold the results
 			results := make([]string, len(values))
 
