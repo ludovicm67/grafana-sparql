@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,7 +30,8 @@ var (
 
 type JSONDataStruct struct {
 	Username string `json:"username"`
-	Endpint  string `json:"endpoint"`
+	Endpoint string `json:"endpoint"`
+	Timeout  string `json:"timeout"`
 }
 
 // NewDatasource creates a new datasource instance.
@@ -44,14 +46,25 @@ func NewDatasource(_ context.Context, settings backend.DataSourceInstanceSetting
 	}
 
 	// Those are the configured fields from the datasource options
-	endpoint := jsonData.Endpint
+	endpoint := jsonData.Endpoint
 	username := jsonData.Username
 	password := settings.DecryptedSecureJSONData["password"]
+	timeoutStr := jsonData.Timeout
+
+	// If the timeout is not set, use a default value of 30 seconds
+	if timeoutStr == "" {
+		timeoutStr = "30000"
+	}
+
+	timeout, err := strconv.ParseInt(timeoutStr, 10, 0)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing query timeout value: %w", err)
+	}
 
 	// Create a new SPARQL repo
 	repo, err := sparql.NewRepo(endpoint,
 		sparql.DigestAuth(username, password),
-		sparql.Timeout(time.Millisecond*1500),
+		sparql.Timeout(time.Millisecond*time.Duration(timeout)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing SPARQL repo: %w", err)

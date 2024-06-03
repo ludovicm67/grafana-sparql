@@ -15,6 +15,8 @@ SELECT * WHERE {
 `,
 };
 
+export const DEFAULT_QUERY_TIMEOUT = 30000; // 30 seconds
+
 /**
  * These are options configured for each DataSource instance
  */
@@ -22,6 +24,7 @@ export interface MyDataSourceOptions extends DataSourceJsonData {
   endpoint?: string;
   username?: string;
   database?: string;
+  timeout?: string;
 }
 
 /**

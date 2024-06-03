@@ -12,6 +12,7 @@ datasources:
     jsonData:
       endpoint: 'https://query.wikidata.org/sparql'
       username: ''
+      timeout: '30000'
     secureJsonData:
       password: ''
 
@@ -26,5 +27,6 @@ datasources:
     jsonData:
       endpoint: 'https://dbpedia.org/sparql'
       username: ''
+      timeout: '30000'
     secureJsonData:
       password: ''

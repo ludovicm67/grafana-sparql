@@ -24,6 +24,14 @@ export function ConfigEditor(props: Props) {
     onOptionsChange({ ...options, jsonData });
   };
 
+  const onTimeoutChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const jsonData = {
+      ...options.jsonData,
+      timeout: event.target.value,
+    };
+    onOptionsChange({ ...options, jsonData });
+  };
+
   // Secure field (only sent to the backend)
   const onPasswordChange = (event: ChangeEvent<HTMLInputElement>) => {
     onOptionsChange({
@@ -73,6 +81,16 @@ export function ConfigEditor(props: Props) {
           placeholder="super-secret-password"
           width={40}
           autoComplete="new-password"
+        />
+      </InlineField>
+      <InlineField label="Query Timeout" labelWidth={16}>
+        <Input
+          type="number"
+          onChange={onTimeoutChange}
+          value={jsonData.timeout || ''}
+          placeholder="30000"
+          width={40}
+          suffix="ms"
         />
       </InlineField>
     </div>
