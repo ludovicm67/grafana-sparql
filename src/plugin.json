@@ -27,7 +27,16 @@
         "url": "https://github.com/ludovicm67/grafana-sparql"
       }
     ],
-    "screenshots": [],
+    "screenshots": [
+      {
+        "name": "Datasource Configuration",
+        "path": "img/screenshots/datasource-configuration.png"
+      },
+      {
+        "name": "Explore",
+        "path": "img/screenshots/explore.png"
+      }
+    ],
     "version": "%VERSION%",
     "updated": "%TODAY%"
   },
