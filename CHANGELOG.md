@@ -1,5 +1,11 @@
 # @ludovicm67/sparql-datasource
 
+## 0.0.1
+
+### Patch Changes
+
+- 87b675a: Fix order of columns
+
 ## 0.0.0
 
 ### Major Changes
