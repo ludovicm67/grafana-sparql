@@ -33,8 +33,8 @@
         "path": "img/screenshots/datasource-configuration.png"
       },
       {
-        "name": "Explore",
-        "path": "img/screenshots/explore.png"
+        "name": "Query Editor",
+        "path": "img/screenshots/query-editor.png"
       }
     ],
     "version": "%VERSION%",
