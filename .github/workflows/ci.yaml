@@ -8,15 +8,27 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   build:
+    name: Build, lint and unit tests
     runs-on: ubuntu-latest
+    outputs:
+      plugin-id: ${{ steps.metadata.outputs.plugin-id }}
+      plugin-version: ${{ steps.metadata.outputs.plugin-version }}
+      has-e2e: ${{ steps.check-for-e2e.outputs.has-e2e }}
+      has-backend: ${{ steps.check-for-backend.outputs.has-backend }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
       - name: Setup Node.js environment
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version-file: .nvmrc
           cache: 'npm'
 
       - name: Install dependencies
@@ -43,14 +55,18 @@ jobs:
         if: steps.check-for-backend.outputs.has-backend == 'true'
         uses: actions/setup-go@v7
         with:
-          go-version: '1.21'
+          go-version-file: go.mod
+
+      - name: Lint backend
+        if: steps.check-for-backend.outputs.has-backend == 'true'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          args: ./pkg/...
 
       - name: Test backend
         if: steps.check-for-backend.outputs.has-backend == 'true'
-        uses: magefile/mage-action@v4
-        with:
-          version: latest
-          args: coverage
+        run: go test ./pkg/...
 
       - name: Build backend
         if: steps.check-for-backend.outputs.has-backend == 'true'
@@ -59,37 +75,166 @@ jobs:
           version: latest
           args: buildAll
 
-      # - name: Sign plugin
-      #   run: npm run sign
-      #   env:
-      #     GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
-      #   if: ${{ env.GRAFANA_ACCESS_POLICY_TOKEN != '' }}
-
       - name: Check for E2E
         id: check-for-e2e
         run: |
-          if [ -d "cypress" ]
+          if [ -f "playwright.config.ts" ]
           then
             echo "has-e2e=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Start grafana docker
-        if: steps.check-for-e2e.outputs.has-e2e == 'true'
-        run: docker compose up -d
+      - name: Get plugin metadata
+        id: metadata
+        run: |
+          export GRAFANA_PLUGIN_ID=$(cat dist/plugin.json | jq -r .id)
+          export GRAFANA_PLUGIN_VERSION=$(cat dist/plugin.json | jq -r .info.version)
 
-      - name: Run e2e tests
-        id: run-e2e-tests
-        if: steps.check-for-e2e.outputs.has-e2e == 'true'
+          echo "plugin-id=${GRAFANA_PLUGIN_ID}" >> $GITHUB_OUTPUT
+          echo "plugin-version=${GRAFANA_PLUGIN_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Archive build
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.metadata.outputs.plugin-id }}-${{ steps.metadata.outputs.plugin-version }}
+          path: dist
+          retention-days: 5
+
+  # Runs the Go tests against a real SPARQL endpoint, so that the plugin is
+  # proven to talk to one and not only to a stubbed HTTP server.
+  backend-integration:
+    name: Backend tests against a SPARQL endpoint
+    runs-on: ubuntu-latest
+    needs: build
+    if: ${{ needs.build.outputs.has-backend == 'true' }}
+    services:
+      oxigraph:
+        image: oxigraph/oxigraph:0.5.9
+        ports:
+          - 7878:7878
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Wait for the SPARQL endpoint
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -sf -o /dev/null http://localhost:7878/; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'the SPARQL endpoint never became available' >&2
+          exit 1
+
+      - name: Run backend tests
+        run: go test -v ./pkg/...
+        env:
+          SPARQL_TEST_ENDPOINT: http://localhost:7878/query
+
+  resolve-versions:
+    name: Resolve e2e images
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    needs: build
+    if: ${{ needs.build.outputs.has-e2e == 'true' }}
+    outputs:
+      matrix: ${{ steps.resolve-versions.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Resolve Grafana E2E versions
+        id: resolve-versions
+        uses: grafana/plugin-actions/e2e-version@e2e-version/v3.0.2
+        with:
+          # Only test against released Grafana versions, so that a regression in
+          # the nightly image does not turn this repository red.
+          skip-grafana-nightly-image: true
+
+  # Starts Grafana with the plugin next to a local SPARQL endpoint, and checks
+  # that queries issued through Grafana reach it and come back as panel data.
+  playwright-tests:
+    needs: [resolve-versions, build]
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        GRAFANA_IMAGE: ${{ fromJson(needs.resolve-versions.outputs.matrix) }}
+    name: e2e test ${{ matrix.GRAFANA_IMAGE.name }}@${{ matrix.GRAFANA_IMAGE.VERSION }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download plugin
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          name: ${{ needs.build.outputs.plugin-id }}-${{ needs.build.outputs.plugin-version }}
+
+      - name: Execute permissions on binary
+        if: needs.build.outputs.has-backend == 'true'
+        run: chmod +x ./dist/gpx_*
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: 'npm'
+
+      - name: Install dev dependencies
+        run: npm ci
+
+      - name: Start Grafana and the SPARQL endpoint
+        run: |
+          docker compose pull
+          ANONYMOUS_AUTH_ENABLED=false DEVELOPMENT=false docker compose up -d
+        env:
+          GRAFANA_VERSION: ${{ matrix.GRAFANA_IMAGE.VERSION }}
+          GRAFANA_IMAGE: ${{ matrix.GRAFANA_IMAGE.NAME }}
+
+      - name: Wait for the Grafana server
+        uses: grafana/plugin-actions/wait-for-grafana@wait-for-grafana/v1.0.5
+        with:
+          url: http://localhost:3000/login
+
+      - name: Check that the SPARQL endpoint is seeded
+        run: |
+          curl -sf -X POST \
+            -H 'Accept: application/sparql-results+json' \
+            --data-urlencode 'query=SELECT ?name WHERE { ?s <http://xmlns.com/foaf/0.1/name> ?name }' \
+            http://localhost:7878/query | tee /dev/stderr | grep -q 'Alice'
+
+      - name: Install Playwright browsers
+        run: npm exec playwright install chromium --with-deps
+
+      - name: Run Playwright tests
+        id: run-tests
         run: npm run e2e
 
-      - name: Stop grafana docker
-        if: steps.check-for-e2e.outputs.has-e2e == 'true'
-        run: docker compose down
+      - name: Collect docker logs
+        if: ${{ always() && steps.run-tests.outcome == 'failure' }}
+        run: docker compose logs --no-color > docker-compose.log
 
-      - name: Archive E2E output
+      - name: Stop Grafana and the SPARQL endpoint
+        if: always()
+        run: docker compose down -v
+
+      - name: Upload the Playwright report
         uses: actions/upload-artifact@v7
-        if: steps.check-for-e2e.outputs.has-e2e == 'true' && steps.run-e2e-tests.outcome != 'success'
+        if: ${{ always() && steps.run-tests.outcome == 'failure' }}
         with:
-          name: cypress-videos
-          path: cypress/videos
+          name: playwright-report-${{ matrix.GRAFANA_IMAGE.NAME }}-${{ matrix.GRAFANA_IMAGE.VERSION }}
+          path: |
+            playwright-report
+            docker-compose.log
           retention-days: 5

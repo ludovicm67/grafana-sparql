@@ -1,0 +1,87 @@
+{
+  "uid": "sparql-examples",
+  "title": "SPARQL examples",
+  "description": "Example queries against the local Oxigraph endpoint seeded with testdata/seed.ttl. Also used by the end-to-end tests.",
+  "tags": ["sparql"],
+  "timezone": "utc",
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "People (SELECT)",
+      "description": "Carol has no age, which makes the query return an unbound value.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "datasource": {
+        "type": "ludovicm67-sparql-datasource",
+        "uid": "sparql-datasource-local"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "ludovicm67-sparql-datasource",
+            "uid": "sparql-datasource-local"
+          },
+          "queryText": "PREFIX ex: <http://example.org/>\nPREFIX foaf: <http://xmlns.com/foaf/0.1/>\n\nSELECT ?name ?age WHERE {\n  ?person foaf:name ?name .\n  OPTIONAL { ?person ex:age ?age }\n} ORDER BY ?name"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Endpoint holds data (ASK)",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "datasource": {
+        "type": "ludovicm67-sparql-datasource",
+        "uid": "sparql-datasource-local"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "ludovicm67-sparql-datasource",
+            "uid": "sparql-datasource-local"
+          },
+          "queryText": "ASK WHERE { ?s ?p ?o }"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Names as triples (CONSTRUCT)",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 9 },
+      "datasource": {
+        "type": "ludovicm67-sparql-datasource",
+        "uid": "sparql-datasource-local"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "ludovicm67-sparql-datasource",
+            "uid": "sparql-datasource-local"
+          },
+          "queryText": "PREFIX foaf: <http://xmlns.com/foaf/0.1/>\n\nCONSTRUCT { ?person foaf:name ?name }\nWHERE { ?person foaf:name ?name }"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    }
+  ]
+}

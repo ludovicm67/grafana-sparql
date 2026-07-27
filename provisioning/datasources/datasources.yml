@@ -1,6 +1,23 @@
 apiVersion: 1
 
 datasources:
+  # Local SPARQL endpoint started by docker-compose and seeded with
+  # ./testdata/seed.ttl. This is the datasource the end-to-end tests use.
+  - name: 'SPARQL - Local'
+    uid: sparql-datasource-local
+    type: 'ludovicm67-sparql-datasource'
+    access: proxy
+    isDefault: true
+    orgId: 1
+    version: 1
+    editable: true
+    jsonData:
+      endpoint: 'http://oxigraph:7878/query'
+      username: ''
+      timeout: '30000'
+    secureJsonData:
+      password: ''
+
   - name: 'SPARQL - Wikidata'
     uid: sparql-datasource-wikidata
     type: 'ludovicm67-sparql-datasource'

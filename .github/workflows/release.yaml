@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*' # Run workflow on version tags, e.g. v1.0.0.
 
+permissions:
+  contents: read
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -14,21 +17,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
       - name: Setup Node.js environment
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version-file: .nvmrc
           cache: 'npm'
 
       - name: Setup Go environment
         uses: actions/setup-go@v7
         with:
-          go-version: '1.21'
+          go-version-file: go.mod
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and test frontend
+      - name: Build frontend
         run: npm run build
 
       - name: Check for backend
@@ -40,10 +46,7 @@ jobs:
 
       - name: Test backend
         if: steps.check-for-backend.outputs.has-backend == 'true'
-        uses: magefile/mage-action@v4
-        with:
-          version: latest
-          args: coverage
+        run: go test ./pkg/...
 
       - name: Build backend
         if: steps.check-for-backend.outputs.has-backend == 'true'
@@ -61,8 +64,6 @@ jobs:
       - name: Get plugin metadata
         id: metadata
         run: |
-          sudo apt-get install jq
-
           export GRAFANA_PLUGIN_ID=$(cat dist/plugin.json | jq -r .id)
           export GRAFANA_PLUGIN_VERSION=$(cat dist/plugin.json | jq -r .info.version)
           export GRAFANA_PLUGIN_TYPE=$(cat dist/plugin.json | jq -r .type)
@@ -89,22 +90,27 @@ jobs:
       - name: Package plugin
         id: package-plugin
         run: |
-          mv dist ${{ steps.metadata.outputs.plugin-id }}
-          zip ${{ steps.metadata.outputs.archive }} ${{ steps.metadata.outputs.plugin-id }} -r
-          sha1sum ${{ steps.metadata.outputs.archive }} | cut -f1 -d' ' > ${{ steps.metadata.outputs.archive-sha1sum }}
+          mv dist ${PLUGIN_ID}
+          zip ${ARCHIVE} ${PLUGIN_ID} -r
+          sha1sum ${ARCHIVE} | cut -f1 -d' ' > ${ARCHIVE_SHA1SUM}
+        env:
+          PLUGIN_ID: ${{ steps.metadata.outputs.plugin-id }}
+          ARCHIVE: ${{ steps.metadata.outputs.archive }}
+          ARCHIVE_SHA1SUM: ${{ steps.metadata.outputs.archive-sha1sum }}
 
       - name: Validate plugin
         run: |
-          git clone https://github.com/grafana/plugin-validator
-          pushd ./plugin-validator/pkg/cmd/plugincheck2
-          go install
-          popd
-          plugincheck2 -config ./plugin-validator/config/default.yaml ${{ steps.metadata.outputs.archive }}
+          docker run --pull=always \
+            -v $PWD/${ARCHIVE}:/archive.zip \
+            grafana/plugin-validator-cli -analyzer=metadatavalid /archive.zip
+        env:
+          ARCHIVE: ${{ steps.metadata.outputs.archive }}
 
       - name: Create Github release
         uses: softprops/action-gh-release@v3
         with:
           draft: false
+          body_path: ${{ steps.changelog.outputs.path }}
           files: |
             ./${{ steps.metadata.outputs.archive }}
             ./${{ steps.metadata.outputs.archive-sha1sum }}

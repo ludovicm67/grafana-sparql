@@ -1,14 +1,39 @@
 services:
   grafana:
-    container_name: 'ludovicm67-sparql-datasource'
-    platform: 'linux/amd64'
-    build:
-      context: ./.config
-      args:
-        grafana_image: ${GRAFANA_IMAGE:-grafana-enterprise}
-        grafana_version: ${GRAFANA_VERSION:-10.0.3}
+    extends:
+      file: .config/docker-compose-base.yaml
+      service: grafana
+    depends_on:
+      oxigraph-seed:
+        condition: service_completed_successfully
+
+  # A local SPARQL endpoint to develop and test against, so that no query has
+  # to leave the machine. Available on http://localhost:7878/query
+  oxigraph:
+    image: oxigraph/oxigraph:${OXIGRAPH_VERSION:-0.5.9}
+    container_name: 'ludovicm67-sparql-oxigraph'
+    command: ['serve', '--location', '/data', '--bind', '0.0.0.0:7878']
     ports:
-      - 3000:3000/tcp
+      - 7878:7878/tcp
+
+  # Loads ./testdata/seed.ttl into Oxigraph once it accepts connections, then
+  # exits. Reloading the same triples is a no-op, so restarts are harmless.
+  oxigraph-seed:
+    image: curlimages/curl:${CURL_VERSION:-8.21.0}
+    container_name: 'ludovicm67-sparql-oxigraph-seed'
+    depends_on:
+      - oxigraph
     volumes:
-      - ./dist:/var/lib/grafana/plugins/ludovicm67-sparql-datasource
-      - ./provisioning:/etc/grafana/provisioning
+      - ./testdata:/testdata:ro
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        until curl -sf -o /dev/null http://oxigraph:7878/; do
+          echo 'waiting for the SPARQL endpoint...'
+          sleep 1
+        done
+        curl -sf -X POST \
+          -H 'Content-Type: text/turtle' \
+          --data-binary @/testdata/seed.ttl \
+          'http://oxigraph:7878/store?default'
+        echo 'seed data loaded'

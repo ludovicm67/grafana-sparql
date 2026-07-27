@@ -1,0 +1,23 @@
+{
+  /*
+   * TypeScript configuration for the Playwright end-to-end tests.
+   *
+   * Playwright resolves the `extends` of a tsconfig by path only, so it cannot
+   * follow the `"extends": "@grafana/tsconfig"` of the scaffolded
+   * ./.config/tsconfig.json. This standalone config is passed to Playwright
+   * through `playwright test --tsconfig` (see the `e2e` npm script).
+   */
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022", "dom"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true
+  },
+  "include": ["playwright.config.ts", "tests/**/*.ts", "src/types.ts"]
+}

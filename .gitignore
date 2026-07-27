@@ -8,6 +8,15 @@ yarn-error.log*
 
 node_modules/
 
+# yarn
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
 # Runtime data
 pids
 *.pid
@@ -25,13 +34,18 @@ dist/
 artifacts/
 work/
 ci/
-e2e-results/
-**/cypress/videos
-**/cypress/report.json
+
+# e2e test directories
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
 
 # Editor
 .idea
 
 .eslintcache
 
+# Release archives
 *.zip

@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -28,6 +26,12 @@ var (
 	_ instancemgmt.InstanceDisposer = (*Datasource)(nil)
 )
 
+// DefaultTimeout is the query timeout used when the datasource does not
+// configure one.
+const DefaultTimeout = 30 * time.Second
+
+// JSONDataStruct holds the datasource options configured in the UI, as they are
+// stored in the datasource `jsonData`.
 type JSONDataStruct struct {
 	Username string `json:"username"`
 	Endpoint string `json:"endpoint"`
@@ -40,43 +44,46 @@ func NewDatasource(_ context.Context, settings backend.DataSourceInstanceSetting
 	var jsonData JSONDataStruct
 
 	// Unmarshal the JSON data into the struct
-	err := json.Unmarshal([]byte(settings.JSONData), &jsonData)
-	if err != nil {
+	if err := json.Unmarshal(settings.JSONData, &jsonData); err != nil {
 		return nil, fmt.Errorf("error unmarshalling JSON data: %w", err)
 	}
 
-	// Those are the configured fields from the datasource options
-	endpoint := jsonData.Endpoint
-	username := jsonData.Username
-	password := settings.DecryptedSecureJSONData["password"]
-	timeoutStr := jsonData.Timeout
-
-	// If the timeout is not set, use a default value of 30 seconds
-	if timeoutStr == "" {
-		timeoutStr = "30000"
+	// If the timeout is not set, use the default one
+	timeout := DefaultTimeout
+	if jsonData.Timeout != "" {
+		ms, err := strconv.ParseInt(jsonData.Timeout, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing query timeout value: %w", err)
+		}
+		timeout = time.Duration(ms) * time.Millisecond
 	}
 
-	timeout, err := strconv.ParseInt(timeoutStr, 10, 0)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing query timeout value: %w", err)
+	return NewDatasourceFor(jsonData.Endpoint, jsonData.Username, settings.DecryptedSecureJSONData["password"], timeout)
+}
+
+// NewDatasourceFor creates a datasource instance talking to the given SPARQL
+// endpoint. Credentials are only sent when a username is configured.
+func NewDatasourceFor(endpoint, username, password string, timeout time.Duration) (*Datasource, error) {
+	if endpoint == "" {
+		return nil, fmt.Errorf("no SPARQL endpoint configured")
 	}
 
-	// Create a new SPARQL repo
-	repo, err := sparql.NewRepo(endpoint,
-		sparql.DigestAuth(username, password),
-		sparql.Timeout(time.Millisecond*time.Duration(timeout)),
-	)
+	options := []func(*sparql.Repo) error{
+		sparql.Timeout(timeout),
+	}
+	if username != "" {
+		options = append(options, sparql.DigestAuth(username, password))
+	}
+
+	repo, err := sparql.NewRepo(endpoint, options...)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing SPARQL repo: %w", err)
 	}
 
-	return &Datasource{
-		Repo: repo,
-	}, nil
+	return &Datasource{Repo: repo}, nil
 }
 
-// Datasource is an example datasource which can respond to data queries, reports
-// its health and has streaming skills.
+// Datasource queries a SPARQL endpoint and turns the results into data frames.
 type Datasource struct {
 	Repo *sparql.Repo
 }
@@ -112,46 +119,9 @@ type queryModel struct {
 	QueryText string `json:"queryText"`
 }
 
-// removeComments removes comments from a SPARQL query.
-func removeComments(query string) string {
-	re := regexp.MustCompile(`(?m)#.*$`)
-	return re.ReplaceAllString(query, "")
-}
-
-// isConstructQuery checks if the given SPARQL query is a CONSTRUCT or a DESCRIBE query.
-func isConstructQuery(query string) bool {
-	// Convert the query to uppercase
-	upperQuery := strings.ToUpper(query)
-	// Remove comments from the query
-	cleanQuery := removeComments(upperQuery)
-
-	// Find the positions of keywords
-	constructPos := strings.Index(cleanQuery, "CONSTRUCT")
-	selectPos := strings.Index(cleanQuery, "SELECT")
-	askPos := strings.Index(cleanQuery, "ASK")
-	describePos := strings.Index(cleanQuery, "DESCRIBE")
-
-	// Find the first occurrence of any keyword
-	firstKeywordPos := -1
-	if constructPos != -1 {
-		firstKeywordPos = constructPos
-	}
-	if selectPos != -1 && (firstKeywordPos == -1 || selectPos < firstKeywordPos) {
-		firstKeywordPos = selectPos
-	}
-	if askPos != -1 && (firstKeywordPos == -1 || askPos < firstKeywordPos) {
-		firstKeywordPos = askPos
-	}
-	if describePos != -1 && (firstKeywordPos == -1 || describePos < firstKeywordPos) {
-		firstKeywordPos = describePos
-	}
-
-	// Check if the first keyword is CONSTRUCT or DESCRIBE
-	return firstKeywordPos == constructPos || firstKeywordPos == describePos
-}
-
-// handleConstructQuery handles a CONSTRUCT or DESCRIBE query.
-func handleConstructQuery(d *Datasource, query string) backend.DataResponse {
+// handleGraphQuery handles a CONSTRUCT or DESCRIBE query, whose result is an
+// RDF graph rendered as subject/predicate/object columns.
+func (d *Datasource) handleGraphQuery(query string) backend.DataResponse {
 	var response backend.DataResponse
 
 	// Execute the SPARQL query
@@ -163,13 +133,10 @@ func handleConstructQuery(d *Datasource, query string) backend.DataResponse {
 	// Prepare the data frame for the results
 	frame := data.NewFrame("response")
 
-	// Get the number of results
-	// nbResults := len(res)
-
 	// Create slices to hold the results
-	subjects := make([]string, 0)
-	predicates := make([]string, 0)
-	objects := make([]string, 0)
+	subjects := make([]string, 0, len(res))
+	predicates := make([]string, 0, len(res))
+	objects := make([]string, 0, len(res))
 
 	// Add each triple one by one to each slice
 	for _, triple := range res {
@@ -188,9 +155,11 @@ func handleConstructQuery(d *Datasource, query string) backend.DataResponse {
 	}
 
 	// Add the slices to the frame
-	frame.Fields = append(frame.Fields, data.NewField("subject", nil, subjects))
-	frame.Fields = append(frame.Fields, data.NewField("predicate", nil, predicates))
-	frame.Fields = append(frame.Fields, data.NewField("object", nil, objects))
+	frame.Fields = append(frame.Fields,
+		data.NewField("subject", nil, subjects),
+		data.NewField("predicate", nil, predicates),
+		data.NewField("object", nil, objects),
+	)
 
 	// Add the frame to the response
 	response.Frames = append(response.Frames, frame)
@@ -198,8 +167,8 @@ func handleConstructQuery(d *Datasource, query string) backend.DataResponse {
 	return response
 }
 
-// handleGenericQuery handles a generic SPARQL query (ASK or SELECT).
-func handleGenericQuery(d *Datasource, query string) backend.DataResponse {
+// handleSolutionQuery handles a SELECT or an ASK query.
+func (d *Datasource) handleSolutionQuery(query string) backend.DataResponse {
 	var response backend.DataResponse
 
 	// Execute the SPARQL query
@@ -217,22 +186,31 @@ func handleGenericQuery(d *Datasource, query string) backend.DataResponse {
 		// This is a boolean result (ASK query)
 		frame.Fields = append(frame.Fields, data.NewField("boolean", nil, []bool{res.Boolean}))
 	} else {
-		// This is a SELECT query
-		bindings := res.Bindings()
+		// This is a SELECT query. Iterate over the solutions rather than over
+		// `Bindings()`, which drops unbound values: a data frame requires every
+		// field to have the same length, so an unbound variable has to become a
+		// null value and not a missing row.
+		solutions := res.Solutions()
 
-		for _, varName := range vars {
-			// Get the values for the variable
-			values := bindings[varName]
+		columns := make([][]*string, len(vars))
+		for i := range columns {
+			columns[i] = make([]*string, 0, len(solutions))
+		}
 
-			// Create a slice to hold the results
-			results := make([]string, len(values))
-
-			// Trasform the values to strings
-			for i, value := range values {
-				results[i] = value.String()
+		for _, solution := range solutions {
+			for i, varName := range vars {
+				term, bound := solution[varName]
+				if !bound {
+					columns[i] = append(columns[i], nil)
+					continue
+				}
+				value := term.String()
+				columns[i] = append(columns[i], &value)
 			}
+		}
 
-			frame.Fields = append(frame.Fields, data.NewField(varName, nil, results))
+		for i, varName := range vars {
+			frame.Fields = append(frame.Fields, data.NewField(varName, nil, columns[i]))
 		}
 	}
 
@@ -242,56 +220,56 @@ func handleGenericQuery(d *Datasource, query string) backend.DataResponse {
 	return response
 }
 
-func (d *Datasource) query(_ context.Context, _ backend.PluginContext, query backend.DataQuery) backend.DataResponse {
-	// Recover from panic, and log the error
+func (d *Datasource) query(_ context.Context, _ backend.PluginContext, query backend.DataQuery) (response backend.DataResponse) {
+	// Recover from a panic and report it as a query error, instead of taking
+	// the whole plugin process down.
 	defer func() {
 		if r := recover(); r != nil {
-			log.DefaultLogger.Error(fmt.Sprintf(">>>>>>>> PANIC!!!: %v", r))
+			log.DefaultLogger.Error("panic while executing SPARQL query", "error", r)
+			response = backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("panic while executing SPARQL query: %v", r))
 		}
 	}()
 
 	// Unmarshal the JSON into our queryModel.
 	var qm queryModel
-	err := json.Unmarshal(query.JSON, &qm)
-	if err != nil {
+	if err := json.Unmarshal(query.JSON, &qm); err != nil {
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("json unmarshal: %v", err.Error()))
 	}
 
-	sparqlQuery := qm.QueryText
-
-	if isConstructQuery(sparqlQuery) {
-		return handleConstructQuery(d, sparqlQuery)
+	if d.Repo == nil {
+		return backend.ErrDataResponse(backend.StatusValidationFailed, "the datasource has no SPARQL endpoint configured")
 	}
 
-	return handleGenericQuery(d, sparqlQuery)
+	if DetectQueryForm(qm.QueryText).ReturnsGraph() {
+		return d.handleGraphQuery(qm.QueryText)
+	}
+
+	return d.handleSolutionQuery(qm.QueryText)
 }
 
 // CheckHealth handles health checks sent from Grafana to the plugin.
 // The main use case for these health checks is the test button on the
 // datasource configuration page which allows users to verify that
 // a datasource is working as expected.
-func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
-	// Define a simple SPARQL query to check the health of the endpoint
-	query := `ASK WHERE { ?s ?p ?o }`
+func (d *Datasource) CheckHealth(_ context.Context, _ *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
+	if d.Repo == nil {
+		return &backend.CheckHealthResult{
+			Status:  backend.HealthStatusError,
+			Message: "No SPARQL endpoint is configured",
+		}, nil
+	}
 
-	// Execute the query using the SPARQL client
-	res, err := d.Repo.Query(query)
-	if err != nil {
+	// Any SPARQL 1.1 endpoint can answer this query: being able to run it is
+	// what proves the endpoint is reachable and speaks SPARQL. Note that the
+	// boolean it returns is not checked, because an endpoint that holds no data
+	// yet is still a healthy endpoint.
+	if _, err := d.Repo.Query(`ASK WHERE { ?s ?p ?o }`); err != nil {
 		return &backend.CheckHealthResult{
 			Status:  backend.HealthStatusError,
 			Message: fmt.Sprintf("Failed to execute health check query: %v", err),
-		}, err
+		}, nil
 	}
 
-	// Check if the endpoint returned a valid response
-	if !res.Boolean {
-		return &backend.CheckHealthResult{
-			Status:  backend.HealthStatusError,
-			Message: "SPARQL endpoint did not return a valid response",
-		}, fmt.Errorf("SPARQL endpoint did not return a valid response")
-	}
-
-	// If everything is working as expected, return a healthy status
 	return &backend.CheckHealthResult{
 		Status:  backend.HealthStatusOk,
 		Message: "SPARQL endpoint is healthy",

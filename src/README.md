@@ -18,6 +18,7 @@ The data source configuration is quite simple:
 - **SPARQL Endpoint**: The URL of the SPARQL endpoint.
 - **Username**: The username to use for authentication (optional).
 - **Password**: The password to use for authentication (optional).
+- **Query Timeout**: How long to wait for a query, in milliseconds (optional, defaults to 30000).
 
 ![Data source configuration](https://raw.githubusercontent.com/ludovicm67/grafana-sparql/main/src/img/screenshots/datasource-configuration.png)
 

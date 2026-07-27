@@ -1,0 +1,26 @@
+# Small dataset loaded into the local Oxigraph SPARQL endpoint, used by the
+# development stack (`npm run server`) and by the end-to-end tests.
+
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix ex:   <http://example.org/> .
+
+ex:alice a foaf:Person ;
+  foaf:name "Alice" ;
+  rdfs:label "Alice" ;
+  ex:age "34"^^xsd:integer ;
+  foaf:knows ex:bob, ex:carol .
+
+ex:bob a foaf:Person ;
+  foaf:name "Bob" ;
+  rdfs:label "Bob" ;
+  ex:age "28"^^xsd:integer ;
+  foaf:knows ex:alice .
+
+# Carol deliberately has no ex:age, so that queries using OPTIONAL produce
+# unbound values.
+ex:carol a foaf:Person ;
+  foaf:name "Carol" ;
+  rdfs:label "Carol" ;
+  foaf:knows ex:alice .
