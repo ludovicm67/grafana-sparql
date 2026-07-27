@@ -5,6 +5,7 @@
 Update the plugin to the current Grafana tooling and add tests against a real SPARQL endpoint.
 
 - Regenerate the `@grafana/create-plugin` scaffolding (5.x → 7.9.0) and build against Grafana 13.
+- Update every frontend and backend dependency to its latest version, except where an upstream constraint blocks it: React stays on 18 (peer dependency of `@grafana/ui` 13), ESLint on 9 (`eslint-plugin-react` supports no more), TypeScript on 5.9 (`typescript-eslint` supports no more) and `@grafana/eslint-config` on 9 (version 10 drops the `flat.js` entry point the scaffolding imports).
 - Update the Go backend to `grafana-plugin-sdk-go` v0.294.0.
 - Replace the Cypress end-to-end setup with `@grafana/plugin-e2e` and Playwright.
 - Add an Oxigraph SPARQL endpoint to the development stack, seeded with `testdata/seed.ttl`, and run the backend and end-to-end tests against it in CI.
