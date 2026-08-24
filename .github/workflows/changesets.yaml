@@ -22,22 +22,22 @@ jobs:
         with:
           # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
           fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN }}
 
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install Dependencies
         run: npm ci
 
       - name: Create Release Pull Request or create a release
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
-          publish: npm run release
-          commit: 'chore: release'
-          title: 'Merge to release'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          # A personal access token is needed here: tags pushed with the default
+          # GITHUB_TOKEN would not trigger the release workflow.
+          github-token: ${{ secrets.GH_TOKEN }}
+          publish-script: npm run release
+          commit-message: "chore: release"
+          pr-title: "Merge to release"
