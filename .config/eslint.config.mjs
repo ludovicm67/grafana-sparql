@@ -5,11 +5,19 @@
  * https://grafana.com/developers/plugin-tools/how-to-guides/extend-configurations#extend-the-eslint-config
  */
 
+import { fixupPluginRules } from '@eslint/compat';
 import { defineConfig } from 'eslint/config';
 import grafanaConfig from '@grafana/eslint-config';
 
+// eslint-plugin-react still relies on context APIs removed in ESLint 10
+// (e.g. `context.getFilename()`), so wrap it with the compat shims.
+const withFixedReactPlugin = (config) =>
+  config.plugins?.react
+    ? { ...config, plugins: { ...config.plugins, react: fixupPluginRules(config.plugins.react) } }
+    : config;
+
 export default defineConfig([
-  ...grafanaConfig,
+  ...grafanaConfig.map(withFixedReactPlugin),
   {
     rules: {
       'react/prop-types': 'off',

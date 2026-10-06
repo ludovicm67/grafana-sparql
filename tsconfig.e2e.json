@@ -10,8 +10,9 @@
   "compilerOptions": {
     "target": "es2022",
     "lib": ["es2022", "dom"],
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "types": ["node"],
+    "module": "node16",
+    "moduleResolution": "node16",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,

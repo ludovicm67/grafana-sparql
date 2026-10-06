@@ -24,27 +24,28 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
+    "@eslint/compat": "^2.1.1",
     "@grafana/eslint-config": "^10.0.0",
-    "@grafana/plugin-e2e": "^3.11.0",
+    "@grafana/plugin-e2e": "^3.14.1",
     "@grafana/sign-plugin": "^3.3.3",
     "@grafana/tsconfig": "^2.2.0",
     "@playwright/test": "^1.63.0",
     "@stylistic/eslint-plugin": "^5.10.0",
-    "@swc/core": "^1.16.1",
+    "@swc/core": "^1.16.13",
     "@swc/helpers": "^0.5.23",
     "@swc/jest": "^0.2.39",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
     "@types/jest": "^30.0.0",
-    "@types/node": "^26.6.3",
+    "@types/node": "^26.6.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@typescript-eslint/eslint-plugin": "^8.71.1",
     "@typescript-eslint/parser": "^8.71.1",
     "copy-webpack-plugin": "^14.0.0",
-    "css-loader": "^7.1.4",
-    "eslint": "^9.39.5",
+    "css-loader": "^7.1.5",
+    "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-jsdoc": "^65.1.0",
     "eslint-plugin-react": "^7.37.5",
@@ -56,20 +57,20 @@
     "imports-loader": "^5.0.0",
     "jest": "^30.5.2",
     "jest-environment-jsdom": "^30.5.2",
-    "prettier": "^3.9.6",
+    "prettier": "^3.9.9",
     "replace-in-file-webpack-plugin": "^1.0.6",
-    "sass": "^1.104.1",
+    "sass": "^1.105.1",
     "sass-loader": "^17.0.1",
     "semver": "^7.8.5",
     "style-loader": "^4.0.0",
     "swc-loader": "^0.2.7",
     "terser-webpack-plugin": "^5.6.1",
     "ts-node": "^10.9.2",
-    "typescript": "5.9.3",
-    "webpack": "^5.109.2",
+    "typescript": "6.0.3",
+    "webpack": "^5.111.1",
     "webpack-cli": "^7.2.3",
     "webpack-livereload-plugin": "^3.0.2",
-    "webpack-subresource-integrity": "^5.1.0",
+    "webpack-subresource-integrity": "^5.2.0-rc.1",
     "webpack-virtual-modules": "^0.6.2"
   },
   "engines": {
@@ -86,5 +87,10 @@
     "react-dom": "^19.3.0",
     "tslib": "^2.8.1"
   },
-  "packageManager": "npm@12.0.2"
+  "packageManager": "npm@12.0.2",
+  "overrides": {
+    "eslint-plugin-react": {
+      "eslint": "$eslint"
+    }
+  }
 }
