@@ -1,5 +1,5 @@
 import { test, expect } from '@grafana/plugin-e2e';
-import { LOCAL_DATASOURCE, setSparqlQuery } from './utils';
+import { LOCAL_DATASOURCE, setSparqlQuery, setVisualization } from './utils';
 
 test('smoke: should render the query editor', async ({ panelEditPage, readProvisionedDataSource, selectors }) => {
   const ds = await readProvisionedDataSource({ fileName: 'datasources.yml', name: LOCAL_DATASOURCE });
@@ -17,7 +17,7 @@ test('a SELECT query should return the data of the SPARQL endpoint', async ({
 }) => {
   const ds = await readProvisionedDataSource({ fileName: 'datasources.yml', name: LOCAL_DATASOURCE });
   await panelEditPage.datasource.set(ds.name);
-  await panelEditPage.setVisualization('Table');
+  await setVisualization(panelEditPage, 'Table');
 
   await setSparqlQuery(
     page,
@@ -33,7 +33,7 @@ test('a SELECT query should return the data of the SPARQL endpoint', async ({
 test('an ASK query should return a boolean', async ({ panelEditPage, page, readProvisionedDataSource, selectors }) => {
   const ds = await readProvisionedDataSource({ fileName: 'datasources.yml', name: LOCAL_DATASOURCE });
   await panelEditPage.datasource.set(ds.name);
-  await panelEditPage.setVisualization('Table');
+  await setVisualization(panelEditPage, 'Table');
 
   await setSparqlQuery(
     page,
@@ -54,7 +54,7 @@ test('a CONSTRUCT query should return triples', async ({
 }) => {
   const ds = await readProvisionedDataSource({ fileName: 'datasources.yml', name: LOCAL_DATASOURCE });
   await panelEditPage.datasource.set(ds.name);
-  await panelEditPage.setVisualization('Table');
+  await setVisualization(panelEditPage, 'Table');
 
   await setSparqlQuery(
     page,
@@ -75,7 +75,7 @@ test('a malformed query should surface the error of the endpoint', async ({
 }) => {
   const ds = await readProvisionedDataSource({ fileName: 'datasources.yml', name: LOCAL_DATASOURCE });
   await panelEditPage.datasource.set(ds.name);
-  await panelEditPage.setVisualization('Table');
+  await setVisualization(panelEditPage, 'Table');
 
   await setSparqlQuery(
     page,
